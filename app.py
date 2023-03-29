@@ -7,8 +7,9 @@ import xgboost
 import numpy as np
 import joblib
 import tensorflow as tf
+import pandas as pd
 
-SCALER = joblib.load('scaler.save')
+SCALERS = joblib.load('scaler.save')
 
 variables_name = ['value_tsh',
                   'value_prl',
@@ -49,16 +50,35 @@ def main():
     if flask.request.method == 'GET':
         return render_template('main.html', output = False)
     if flask.request.method == 'POST':
-        #Название модели
-        with open('xgb.pkl', 'rb') as f:
+
+        # ----------- код для XGBClassifier ---------
+        #with open('xgb.pkl', 'rb') as f:
             #loaded_model = joblib.load(f)
-            loaded_model = tf.keras.models.load_model("ANN.keras")
-        x_pred = SCALER.transform(np.array([float(flask.request.form[var]) for var in variables_name]).reshape(-1,1))
+        # -------------------------------------------
+
+        # -------------- код для ANN ----------------
+        loaded_model = tf.keras.models.load_model("ANN.keras")
+        # -------------------------------------------
+
+        df_X = pd.DataFrame()
+        for idx, var in enumerate(variables_name):
+            scaler = SCALERS[idx]
+            input_val = np.array(float(flask.request.form[var])).reshape(-1, 1)
+            scaled_value = scaler.transform(input_val)[0][0]
+            temp_df = pd.DataFrame({f'{var}': [scaled_value]})
+            df_X = pd.concat((df_X, temp_df), axis=1)
+
         #x_pred = np.array(x_pred).reshape(1,-1)
-        y_prob = loaded_model.predict(x_pred.reshape(1,-1))
-        #y_pred = loaded_model.predict(x_pred)
-        #predict_class= np.argmax(y_pred, axis=1)
-        class_ = (y_prob < 0.5).astype(int)
+
+        # ----------- код для XGBClassifier ---------
+        #y_prob = loaded_model.predict_proba(df_X)
+        #class_ = np.argmax(y_prob, axis=1)
+        # -------------------------------------------
+
+        # -------------- код для ANN ----------------
+        y_prob = loaded_model.predict(df_X)
+        class_ = (y_prob > 0.5).astype(int)
+        # -------------------------------------------
 
         return render_template('main.html', output = True,
                                             prob_class = y_prob,
